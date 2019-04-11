@@ -1,0 +1,9 @@
+src/build
+tmp
+umm_types.txt
+proof/output
+*.swp
+*~
+src/all.c
+src/all.c_pp
+tool
