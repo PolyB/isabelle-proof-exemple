@@ -106,15 +106,24 @@ lemma list_last_next_is_null : "list (xs @ [x]) p s \<Longrightarrow> s[x]\<righ
    apply(clarsimp)+
   done
 
+lemma list_last_next_is_null2 : "\<lbrakk> xs \<noteq> [] ; list xs p s \<rbrakk> \<Longrightarrow> s[last xs]\<rightarrow>next = NULL"
+  apply(induction xs arbitrary:p)
+   apply(clarsimp)+
+  done
+
 lemma list_content_is_valid : "\<lbrakk> list xs p s ; w \<in> set xs \<rbrakk> \<Longrightarrow> is_valid_list_C s w \<and> w \<noteq> NULL
                                                              \<and> (\<exists>ys. list ys s[w]\<rightarrow>next s)"
   apply(induction xs arbitrary:p)
    apply(clarsimp)+
   apply(auto)
   done
-
+ 
 lemma first_element_in_list : "\<lbrakk> list xs p s ; p \<noteq> NULL \<rbrakk> \<Longrightarrow> p \<in> set xs"
   by (auto simp:list_is_cons_r)
+
+lemma a_list_next_is_a_list : "\<lbrakk> p \<noteq> NULL ; a_list p s \<rbrakk> \<Longrightarrow> a_list s[p]\<rightarrow>next s"
+  apply(unfold a_list_def)
+  by (simp add: list_is_cons_r)
 
 section \<open>listp\<close>
 
@@ -150,6 +159,123 @@ lemma list_st_upd_any_base_ptr [simp] : "ptr_coerce (l :: list_C ptr ptr) \<noti
    apply(clarsimp)+
   done
 
+section \<open>list\_length\<close>
+subsection \<open>list\_length definition\<close>
+
+primrec list_length :: "nat \<Rightarrow> list_C ptr \<Rightarrow> lifted_globals \<Rightarrow> bool" where
+  list_length_empty : "list_length 0 p s = (p = NULL)" |
+  list_length_suc   : "list_length (Suc n) p s = (p \<noteq> NULL \<and> is_valid_list_C s p \<and> list_length n s[p]\<rightarrow>next s)"
+
+definition list_length_p :: "nat \<Rightarrow> list_C ptr ptr \<Rightarrow> lifted_globals \<Rightarrow> bool" where
+  "list_length_p n p s \<equiv> is_valid_list_C'ptr s p \<and> list_length n s[p] s"
+
+subsection \<open>list\_length properties\<close>
+
+lemma list_length_empty_r : "list_length n NULL s \<Longrightarrow> n = 0"
+  by (cases n,auto)
+
+lemma list_length_suc_r : "p \<noteq> NULL \<Longrightarrow> list_length n p s = (\<exists>ns. is_valid_list_C s p \<and> Suc ns = n \<and> list_length ns s[p]\<rightarrow>next s)" 
+  apply (induction n arbitrary:p)
+   apply(clarsimp)
+  apply(clarsimp)
+  done
+
+lemma list_length_has_list : "list_length n p s \<Longrightarrow> (\<exists>xs. list xs p s \<and> length xs = n)"
+  apply(induction n arbitrary:p)
+   apply(clarsimp)
+  apply(clarsimp)
+  using list_is_cons_r by fastforce
+
+lemma list_length_unique : "\<lbrakk> list_length n p s \<and> list_length m p s \<rbrakk> \<Longrightarrow> n = m"
+  apply(induction n arbitrary:p m)
+   apply(clarsimp)
+   apply(simp add:list_length_empty_r)
+  apply(clarsimp)
+  apply(auto simp:list_length_suc_r)
+  done
+
+lemma list_length_equiv_the_length_list : "list_length n p s \<Longrightarrow> length (THE xs. list xs p s) = n"
+  apply(induction n arbitrary:p)
+   apply (simp add: the_list_unique)
+  apply(clarsimp simp:the_list_unique)
+  apply(frule list_length_has_list)
+  apply(clarsimp)
+  by (metis length_Cons list_is_cons the_list_unique)
+
+lemma list_length_equiv_length_list2 : "list xs p s \<Longrightarrow> list_length (length xs) p s"
+  apply(induction xs arbitrary:p)
+   apply(clarsimp)
+  apply(simp)
+  apply(intro conjI)
+    apply(clarsimp)+
+  done
+
+lemma list_length_equiv_length_list3 : "\<lbrakk> list xs p s ; list_length x p s \<rbrakk> \<Longrightarrow> x = length xs"
+  apply(induction xs arbitrary:p x)
+   apply(clarsimp)
+   apply(rule list_length_empty_r[where s=s])
+   apply(simp)
+  apply(clarsimp simp: list_length_suc_r)
+  done
+
+lemma list_length_equiv_length_list4 : "list_length x p s \<Longrightarrow> (THE n. list_length n p s) = x"
+  apply(rule the_equality)
+   apply(clarsimp)
+  apply(simp add: list_length_unique)
+  done
+
+lemma list_length_p_is_list_length : "list_length_p n p s \<Longrightarrow> list_length n s[p] s"
+  apply(unfold list_length_p_def)
+  by(simp)
+
+lemma list_length_the_is_zero : "b = NULL \<Longrightarrow> (THE n. list_length n b s) = 0"
+  apply(simp)
+  apply(subst list_length_empty_r)
+   apply (metis (mono_tags) list_length_empty list_length_empty_r theI_unique)
+  apply(simp)
+  done
+
+lemma the_list_length_exists : "list_length m b s \<Longrightarrow> (THE n. list_length n b s) = m"
+  by (metis (mono_tags) list_length_equiv_the_length_list theI')
+
+lemma list_length_exists : "a_list p s \<Longrightarrow> \<exists>n. list_length n p s"
+
+  apply(unfold a_list_def)
+  apply(clarsimp)
+  apply(intro exI)
+  apply(rule list_length_equiv_length_list2)
+  apply(simp)
+  done
+
+lemma list_length_the_is_not_zero : "\<lbrakk> list_length n b s ; b \<noteq> NULL\<rbrakk> \<Longrightarrow> Suc (THE n. list_length n s[b]\<rightarrow>next s) = n"
+  apply(induction n arbitrary:b)
+   apply(clarsimp)
+  apply(simp)
+  apply(clarsimp)
+  apply(rule the_equality)
+   apply(clarsimp)
+  apply(rule_tac p="s[b]\<rightarrow>next" in list_length_unique[where s=s])
+  apply(clarsimp)
+  done
+
+lemma list_length_the_list_length : "a_list p s \<Longrightarrow> list_length (THE n . list_length n p s) p s"
+  apply(unfold a_list_def)
+  apply(clarsimp)
+  apply(rule theI)
+  apply(rule_tac xs=xs in list_length_equiv_length_list2)
+   apply(clarsimp)
+  apply(simp add: list_length_equiv_length_list3)
+  done
+
+lemma list_length_non_null_not_zero : "\<lbrakk> a_list p s ; p \<noteq> NULL \<rbrakk> \<Longrightarrow> (THE n. list_length n p s) \<noteq> 0"
+
+  apply(rule theI2)
+    apply(rule list_length_the_list_length)
+    apply(simp)
+   apply(simp add: list_length_equiv_length_list4)
+  apply(clarsimp simp: list_length_suc_r)
+  done
+
 section \<open>hoare helpers\<close>
 
 subsection \<open>nondet monad\<close>
@@ -167,11 +293,20 @@ lemma hoare_conjINFR:
 
 lemma hoare_transf_predNF: "\<lbrakk> (G' \<Longrightarrow> \<lbrace> P \<rbrace> f \<lbrace> Q \<rbrace>! ) ; (G \<Longrightarrow> G') \<rbrakk> \<Longrightarrow> \<lbrace> \<lambda>s. G \<and> P s \<rbrace> f \<lbrace> Q \<rbrace>!"
   by (simp add: grab_asm_NF)
+
+lemma hoare_transf_pred: "\<lbrakk> (G' \<Longrightarrow> \<lbrace> P \<rbrace> f \<lbrace> Q \<rbrace> ) ; (G \<Longrightarrow> G') \<rbrakk> \<Longrightarrow> \<lbrace> \<lambda>s. G \<and> P s \<rbrace> f \<lbrace> Q \<rbrace>"
+  by (simp add: hoare_grab_asm)
   
 
 subsection \<open>option monad\<close>
 
 lemma ovalidNF_is_validNF : "ovalidNF P f P' \<Longrightarrow> \<lbrace> P \<rbrace> gets_the f \<lbrace> P'\<rbrace>!"
+  apply(unfold ovalidNF_def)
+  apply(wp)
+  apply(auto)
+  done
+
+lemma ovalidNF_is_valid : "ovalidNF P f P' \<Longrightarrow> \<lbrace> P \<rbrace> gets_the f \<lbrace> P'\<rbrace>"
   apply(unfold ovalidNF_def)
   apply(wp)
   apply(auto)
@@ -210,10 +345,24 @@ lemma list_non_empty_has_init : "x \<noteq> [] \<Longrightarrow> \<exists>w. w @
 
 section \<open>state helpers\<close>
 
+lemma lhu:
+"heap_list_C_update f (heap_list_C_update g s) \<equiv> heap_list_C_update (\<lambda>h. f (g h)) s"
+  apply (auto)
+  apply(fold comp_def)
+  apply(simp)
+  done
+
 lemma next_upd_diff : "x \<noteq>w \<Longrightarrow> s[x\<rightarrow>next := a][w\<rightarrow>next := b] \<equiv> s[w\<rightarrow>next := b][x\<rightarrow>next := a]"
-  by (smt all.update_list_next_def fun_upd_def fun_upd_twist
-          lifted_globals.surjective lifted_globals.update_convs(4))
-  
+
+  apply(unfold all.update_list_next_def)
+  apply(subst lhu)+
+  apply(subst fun_upd_twist)
+   apply(simp)
+
+  apply(unfold fun_upd_def)
+  apply presburger
+  done
+
 lemma listptrptr_upd_not_mod : "ptr_coerce (k :: list_C ptr ptr) \<noteq> (x :: list_C ptr)
                                                                           \<Longrightarrow> s[k := \<omega>][x] = s[x]"
   by simp
@@ -333,7 +482,7 @@ lemma list_insert_after_correct_p : "\<lbrakk> ptr_coerce p \<noteq> x ;  x \<no
 
 subsubsection \<open>pure\<close>
 
-lemma list_insert_after_pure : "(\<forall>s \<omega>. P s \<longrightarrow> P s[x\<rightarrow>next := \<omega>][w\<rightarrow>next := x]) \<Longrightarrow> \<lbrace> P \<rbrace> all.list_insert_after' w x \<lbrace> \<lambda>r. P \<rbrace>"
+lemma list_insert_after_pure : "(\<forall>s. P s \<longrightarrow> P s[x\<rightarrow>next := s[w]\<rightarrow>next][w\<rightarrow>next := x]) \<Longrightarrow> \<lbrace> P \<rbrace> all.list_insert_after' w x \<lbrace> \<lambda>r. P \<rbrace>"
   apply(clarsimp simp:all.list_insert_after'_def)
   apply(wp)
   apply(clarsimp)
@@ -469,6 +618,13 @@ lemma list_find_last_node_correct : "ovalidNF (listp (xs @ [x]) p ) (all.list_fi
 lemma list_find_last_node_correct2 : "xs = ys @ [w] \<Longrightarrow> ovalidNF (listp xs p ) (all.list_find_last_node' p) (\<lambda>r _. r = w) "
   by(auto simp:list_find_last_node_correct)
 
+lemma list_find_last_node_correct3 : "xs \<noteq> [] \<Longrightarrow> ovalidNF (listp xs p) (all.list_find_last_node' p) (\<lambda>r _. r = last xs)"
+  apply(frule list_non_empty_has_init)
+  apply(clarsimp)
+  apply(rule_tac ys=w in list_find_last_node_correct2)
+  apply(clarsimp)
+  done
+
 subsubsection \<open>pure\<close>
 
 lemma  list_find_last_node_pure : "ovalid P (all.list_find_last_node' p) (\<lambda>r. P)"
@@ -523,5 +679,139 @@ lemma list_insert_back_correct : "(x \<notin> set xs \<and> x \<noteq> NULL \<an
     apply(rule list_find_last_node_pure_ND)
    apply(wp)
   using list_is_empty_r listp_def apply fastforce
+  done
+
+subsubsection \<open>pure\<close>
+
+lemma list_find_last_node_correct3' : "\<lbrace>\<lambda>s. xs \<noteq> [] \<and>  listp xs l s\<rbrace> gets_the (all.list_find_last_node' l) \<lbrace>\<lambda>x s. (xs \<noteq> [] \<and> x = last xs)\<rbrace>"
+ apply(subst hoare_conjI)
+    apply(rule hoare_transf_pred)
+     apply(simp)
+    apply(wp)
+    apply(simp)
+   apply(rule hoare_grab_asm)
+  apply(erule ovalidNF_is_valid[OF list_find_last_node_correct3])
+  apply(simp)
+  done
+
+lemma list_insert_back_pure: "\<lbrakk> (\<forall>s. P s \<longrightarrow> P s[l := x]) ;
+                                (\<forall>s. P s \<longrightarrow> P s[x\<rightarrow>next := s[(last xs)]\<rightarrow>next]) ;
+                                (\<forall>s. P s \<longrightarrow> P s[x\<rightarrow>next := NULL]) ;
+                                (\<forall>s. P s \<longrightarrow> P s[(last xs)\<rightarrow>next := x]) \<rbrakk> 
+                                \<Longrightarrow> \<lbrace> \<lambda>s. listp xs l s \<and> P s \<rbrace> all.list_insert_back' l x \<lbrace> \<lambda>_. P \<rbrace>"
+  apply(clarsimp simp:all.list_insert_back'_def)
+  apply(wp)
+     apply(rule list_singleton_pure)
+     apply(simp)
+    apply(wp)
+     apply(rule hoare_transf_pred[OF list_insert_after_pure])
+      apply(subgoal_tac "xs \<noteq> [] \<and> xa = last xs")
+  prefer 2 (* On veut forcer ?G'15 *)
+       apply(simp)
+      apply(clarsimp)
+     apply(simp)
+    apply(rule hoare_wp_combs)
+  apply(rule list_find_last_node_correct3')
+    apply(rule list_find_last_node_pure_ND)
+   apply(wp)
+  apply(clarsimp)
+  apply(unfold listp_def)
+  apply(clarsimp)
+  done
+
+subsection \<open>list\_length\<close>
+
+subsubsection \<open>correct\<close>
+
+definition list_length_loop :: "(32 word \<times> list_C ptr) \<Rightarrow> lifted_globals \<Rightarrow> (32 word \<times> list_C ptr) option" where
+"list_length_loop \<equiv> owhile (\<lambda>(count, p) a. p \<noteq> NULL) (\<lambda>(count, p). DO y <- oguard (\<lambda>s. is_valid_list_C s p);
+      p <- ogets (\<lambda>s. s[p]\<rightarrow>next);
+      oreturn (count + 1, p)
+   OD)"
+
+lemma list_length_loop_correct : "n \<le> 2 ^ LENGTH(32) - 1 \<Longrightarrow> ovalidNF (list_length n p) (list_length_loop (0, p)) (\<lambda>(x,_) _. unat x = n)"
+  apply(unfold list_length_loop_def)
+  apply(subst owhile_add_inv [where I = "\<lambda>(count,p) s. (\<exists>m. list_length m p s \<and> n = m + unat count)", where M = "\<lambda>(count,p) s. (THE n. list_length n p s)"])
+  apply(wp)
+      apply(clarsimp)
+     apply(intro conjI)
+      apply(frule_tac n="m" and s=s in list_length_suc_r)
+      apply(clarsimp)
+  
+     apply(frule_tac n="m" and s=s in list_length_suc_r)
+     apply(clarsimp)
+  apply(intro exI)
+     apply(intro conjI)
+      apply(assumption)
+     apply(clarsimp)
+     apply(rule unat_Suc2[symmetric])
+  apply(subst minus_one_norm)
+     apply(clarsimp)
+    apply(wp)
+    apply(clarsimp) 
+    apply(frule_tac b="b" in the_list_length_exists)
+    apply(frule_tac n="ma" and s=s in list_length_suc_r)
+  apply(clarsimp)
+    apply(frule_tac b="s[b]\<rightarrow>next" in the_list_length_exists)
+    apply(simp)
+   apply(clarsimp)
+  apply(frule list_length_empty_r)
+   apply(simp)
+  apply(clarsimp)
+  done
+
+lemma list_length_correct : "n \<le> 2 ^ LENGTH(32) - 1 \<Longrightarrow> ovalidNF (list_length_p n p) (all.list_length' p) (\<lambda>r _. unat r = n)"
+  apply(clarsimp simp:all.list_length'_def)
+  apply(fold list_length_loop_def)
+  apply(wp)
+    apply(clarsimp)
+    apply(rule list_length_loop_correct)
+    apply(simp)
+   apply(subgoal_tac "ovalidNF (list_length_p n p) (ogets (\<lambda>s. s[p])) (list_length n)")
+    apply(assumption)
+   apply(wp)
+   apply(simp add:list_length_p_def)
+  apply(wp)
+  apply(simp add:list_length_p_def)
+  done
+
+subsection \<open>list\_pop\<close>
+subsubsection \<open>correct\<close>
+
+lemma list_pop_val : "listp (x # xs) p s  \<Longrightarrow> listp xs p s[p := s[s[p]]\<rightarrow>next]"
+  apply(unfold listp_def)
+  apply(rule conjI)
+   apply(simp)
+  apply(rule conjI)
+   apply(simp)
+  apply(simp add: fun_upd_def)
+  apply(clarsimp)
+  done
+
+lemma list_pop_cons_correct : "\<lbrace> listp (x # xs) p \<rbrace> all.list_pop' p \<lbrace> \<lambda>r s. listp xs p s \<and> r = x \<rbrace>!"
+  apply(clarsimp simp:all.list_pop'_def)
+  apply(wp)
+  apply(intro conjI)
+   apply(subgoal_tac "s[p] \<noteq> NULL")
+    apply(clarsimp)
+    apply(intro conjI)
+      apply(rule list_pop_val)
+      apply(simp)
+  apply(clarsimp simp:listp_def)+
+  done
+
+lemma list_pop_empty_correct : "\<lbrace> listp [] p \<rbrace> all.list_pop' p \<lbrace> \<lambda>r _. r = NULL \<rbrace>!"
+  apply(clarsimp simp:all.list_pop'_def)
+  apply(wp)
+  apply(clarsimp simp:listp_def)
+  done
+
+subsubsection \<open>pure\<close>
+
+lemma list_pop_pure : "(\<forall>s. P s \<longrightarrow> P s[p := s[s[p]]\<rightarrow>next]) \<Longrightarrow> \<lbrace> P \<rbrace> all.list_pop' p \<lbrace> \<lambda>_. P \<rbrace>"
+  apply(clarsimp simp:all.list_pop'_def)
+  apply(wp)
+  apply(case_tac "s[p] = NULL")
+   apply(clarsimp)+
   done
 end

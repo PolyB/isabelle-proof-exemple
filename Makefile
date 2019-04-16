@@ -24,7 +24,7 @@ tool/autocorres:
 
 src/build:
 	mkdir src/build
-	cd build ; cmake ..
+	cd src/build ; cmake ..
 
 src/all.c_pp: src/build
 	$(MAKE) -C src/build gen-all-c_pp

@@ -48,3 +48,24 @@ void list_insert_back(list_t *l, struct list *new)
     list_insert_after(last, new);
   }
 } 
+
+struct list *list_pop(list_t *l)
+{
+  if (!*l)
+    return NULL;
+  struct list *first = *l;
+  *l = first->next;
+  return first;
+}
+
+unsigned int list_length(list_t *l)
+{
+  unsigned int count = 0;
+  struct list *p = *l;
+  while (p)
+  {
+    count++;
+    p = p->next;
+  }
+  return count;
+}
