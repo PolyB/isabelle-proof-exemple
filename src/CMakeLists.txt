@@ -19,7 +19,7 @@ add_executable(pexemple ${SRC})
 add_custom_target(gen-all-c_pp
                   ALL
                   COMMAND cat ${SRC_PROOF} > all.c
-                  COMMAND ${CMAKE_C_COMPILER} --preprocess all.c -o all.c_pp
+                  COMMAND ${CMAKE_C_COMPILER} -DPROOVER --preprocess all.c -o all.c_pp
                   BYPRODUCTS all.c_pp
                   DEPENDS ${SRC_PROOF}
                   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}

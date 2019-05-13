@@ -1,3 +1,9 @@
+(*  Titre:      Listp.thy
+    Auteur:     Adrien Stalain
+
+    Fait dans le cadre d'un stage à Orange Labs
+*)
+
 theory Listp
   imports "Import_C"
 begin
@@ -12,10 +18,10 @@ text \<open>Le @{type list_C} est un type importé du C (struct list) qui repré
   @{text "struct list { struct list *next; data_ptr data; };"}
 \<close>
 
-type_synonym list_nodes = "list_C ptr list"
+type_synonym node = "list_C ptr"
 
 
-primrec list :: "list_nodes \<Rightarrow> list_C ptr \<Rightarrow> lifted_globals \<Rightarrow> bool"  where
+primrec list :: "node list \<Rightarrow> node \<Rightarrow> lifted_globals \<Rightarrow> bool"  where
 list_is_empty:  "list [] p s = (p = NULL)" |
 list_is_cons:  "list (x#xs) p s = ( p = x
                               \<and> is_valid_list_C s p
@@ -32,7 +38,7 @@ text \<open>Une liste bien définie est soit vide, et dans ce cas là @{term p} 
   @{term "s[p]\<rightarrow>next"}\<close>
 
 
-definition a_list :: "list_C ptr \<Rightarrow> lifted_globals \<Rightarrow> bool" where
+definition a_list :: "node \<Rightarrow> lifted_globals \<Rightarrow> bool" where
   "a_list p s \<equiv> (\<exists>xs. list xs p s)"
 
 text \<open>La propriétée @{term "a_list p s"} est valide si @{term p}
@@ -125,21 +131,6 @@ lemma a_list_next_is_a_list : "\<lbrakk> p \<noteq> NULL ; a_list p s \<rbrakk> 
   apply(unfold a_list_def)
   by (simp add: list_is_cons_r)
 
-section \<open>listp\<close>
-
-subsection \<open>listp definition\<close>
-
-definition listp :: "list_nodes \<Rightarrow> list_C ptr ptr \<Rightarrow> lifted_globals \<Rightarrow> bool" where
-  "listp n pt s \<equiv> (ptr_coerce pt \<notin> set n \<and> is_valid_list_C'ptr s pt \<and> list n s[pt] s)"
-
-text \<open>La propriétée @{term "listp x p s"} indique que @{term p} est une liste valide contenant
-  les nodes @{term x} dans l'état global @{term s}\<close>
-
-subsection \<open>listp properties\<close>
-
-lemma listp_unique: "\<lbrakk> listp xs p s ; listp ys p s \<rbrakk> \<Longrightarrow> xs = ys"
-  by (auto simp:listp_def list_unique)
-
 subsubsection \<open>state update\<close>
 
 lemma list_st_update_ignore [simp] : "q \<notin> set xs \<Longrightarrow> list xs p (s[q\<rightarrow>next := \<omega>]) = list xs p s"
@@ -158,6 +149,23 @@ lemma list_st_upd_any_base_ptr [simp] : "ptr_coerce (l :: list_C ptr ptr) \<noti
   apply(induct xs arbitrary:p)
    apply(clarsimp)+
   done
+
+section \<open>listp\<close>
+
+subsection \<open>listp definition\<close>
+
+definition listp :: "node list \<Rightarrow> node ptr \<Rightarrow> lifted_globals \<Rightarrow> bool" where
+  "listp n pt s \<equiv> (ptr_coerce pt \<notin> set n \<and> is_valid_list_C'ptr s pt \<and> list n s[pt] s)"
+
+text \<open>La propriétée @{term "listp x p s"} indique que @{term p} est une liste valide contenant
+  les nodes @{term x} dans l'état global @{term s}\<close>
+
+subsection \<open>listp properties\<close>
+
+lemma listp_unique: "\<lbrakk> listp xs p s ; listp ys p s \<rbrakk> \<Longrightarrow> xs = ys"
+  by (auto simp:listp_def list_unique)
+
+
 
 section \<open>list\_length\<close>
 subsection \<open>list\_length definition\<close>
@@ -372,20 +380,95 @@ subsection \<open>list\_empty\<close>
 subsubsection \<open>correct\<close>
 
 lemma list_empty_correct : "\<lbrace> \<lambda> s. is_valid_list_C'ptr s l \<rbrace> all.list_empty' l \<lbrace> \<lambda>_. listp [] l \<rbrace>!"
-  apply(auto simp:all.list_empty'_def)
+  apply(unfold all.list_empty'_def)
   apply(wp)
-  apply(clarsimp simp:listp_def fun_upd_def)
+  apply(intro conjI)
+   apply(unfold listp_def)
+   apply(intro conjI)
+     apply(clarsimp)
+    apply(clarsimp)
+   apply(subst list_is_empty)
+   apply(clarsimp simp:fun_upd_def)
+  apply(clarsimp)
   done
 
 subsubsection \<open>pure\<close>
 
-lemma list_empty_pure : " (\<forall>s. P s \<longrightarrow> P s[l := NULL]) \<Longrightarrow> \<lbrace> P \<rbrace> all.list_empty' l \<lbrace> \<lambda>_. P \<rbrace>"
+lemma list_empty_pure : "(\<forall>s. P s \<longrightarrow> P s[l := NULL]) \<Longrightarrow> \<lbrace> P \<rbrace> all.list_empty' l \<lbrace> \<lambda>_. P \<rbrace>"
   apply(unfold all.list_empty'_def)
   apply(wp)
   apply(clarsimp)
   done
 
+subsubsection \<open>alt\<close>
+
+lemma list_empty_alt1_correct : "\<lbrace> \<lambda> s. is_valid_list_C'ptr s l \<rbrace> all.list_empty_alt1' l \<lbrace> \<lambda>_. listp [] l \<rbrace>!"
+  apply(clarsimp simp:all.list_empty_alt1'_def)
+  apply(wp)
+  apply(intro conjI)
+   apply(unfold listp_def)
+  apply(intro conjI)
+      apply(clarsimp simp:fun_upd_def)+
+  done
+
+lemma list_empty_alt1_pure : "(\<forall>s. P s \<longrightarrow> P s[l := NULL]) \<Longrightarrow> \<lbrace> P \<rbrace> all.list_empty_alt1' l \<lbrace> \<lambda>_. P \<rbrace>"
+  apply(unfold all.list_empty_alt1'_def)
+  apply(wp)
+  apply(clarsimp)
+  oops (* oops abort the proof*)
+
+lemma list_empty_alt2_correct : "\<lbrace> \<lambda> s. is_valid_list_C'ptr s l \<rbrace> all.list_empty_alt2' l \<lbrace> \<lambda>_. listp [] l \<rbrace>!"
+  apply(clarsimp simp:all.list_empty_alt2'_def)
+  apply(wp)
+   apply(subst whileLoop_add_inv[where I="\<lambda>r s. is_valid_list_C'ptr s l \<and> (r \<noteq> 0 \<longrightarrow> s[l] = NULL)", where M="\<lambda>(r,s).0xFFFFFFFF - unat r"])
+   apply(wp)
+    apply(clarsimp)
+    apply(subst unat_Suc2)
+     apply(clarsimp)
+    apply(intro conjI)
+     apply(clarsimp)
+  apply (simp add: fun_upd_same)
+    apply(rule diff_less_mono2)
+     apply(simp)
+    apply (simp add: word_less_nat_alt)
+   apply(unfold listp_def)
+  apply(intro conjI)
+      apply(clarsimp simp:fun_upd_def)+
+  done
+
+lemma list_empty_alt2_pure : "(\<forall>s. P s \<longrightarrow> P s[l := NULL]) \<Longrightarrow> \<lbrace> P \<rbrace> all.list_empty_alt2' l \<lbrace> \<lambda>_. P \<rbrace>"
+  apply(clarsimp simp:all.list_empty_alt2'_def)
+  apply(subst whileLoop_add_inv[where I="\<lambda>r s. P s"])
+  apply(wp)
+    apply(clarsimp)+
+  done
+
+
 subsection \<open>list\_insert\_front\<close>
+subsubsection \<open>bad spec\<close>
+
+lemma list_insert_front_correct_bad_spec : "x \<noteq> NULL
+  \<Longrightarrow> \<lbrace>\<lambda>s. listp xs l s \<and> is_valid_list_C s x  \<rbrace> all.list_insert_front' l x \<lbrace>\<lambda>r. listp (x#xs) l \<rbrace>!"
+  apply(clarsimp simp:all.list_insert_front'_def)
+  apply(wp)
+  apply(intro conjI)
+    apply(unfold listp_def)
+    apply(intro conjI)
+  apply(simp)
+      defer
+      apply(clarsimp)
+     apply(subst list_is_cons)
+     apply(intro conjI)
+      apply(clarsimp simp:fun_upd_def)
+       apply(clarsimp simp:fun_upd_def)
+      apply(clarsimp simp:fun_upd_def)
+     apply(clarsimp simp:fun_upd_def)
+  apply(subgoal_tac "x \<notin> set xs")
+      apply(clarsimp)
+     defer
+     apply(clarsimp)
+  apply(clarsimp)
+  oops
 
 subsubsection \<open>correct\<close>
 
@@ -434,6 +517,22 @@ lemma list_singleton_pure : "(\<forall>s. P s \<longrightarrow> P s[l := x][x\<r
   apply(wp)
   apply(clarsimp)
   done
+
+subsubsection \<open>bad\<close>
+
+lemma list_singleton_bad_correct : "\<lbrakk> x \<noteq> NULL ; x \<noteq> ptr_coerce l \<rbrakk> \<Longrightarrow> 
+                                              \<lbrace> \<lambda>s. is_valid_list_C s x \<and> is_valid_list_C'ptr s l  \<rbrace>
+                                              all.list_singleton_alt' l x
+                                              \<lbrace> \<lambda> r. listp [x] l \<rbrace>!"
+  apply(unfold all.list_singleton_alt'_def)
+  apply(wp)
+  apply(intro conjI)
+   apply(unfold listp_def)
+   apply(intro conjI)
+     apply(clarsimp simp:fun_upd_def)+
+   defer
+   apply(simp)
+  oops
 
 subsection \<open>list\_insert\_after\<close>
 
@@ -520,21 +619,18 @@ definition list_find_last_node_inner_loop_content :: "list_C ptr \<Rightarrow> l
          oreturn p
       OD"
 
-lemma list_find_last_node_inner_loop_content_correct : " \<lbrakk> a \<in> set (xs @ [x]) ; a \<noteq> NULL \<rbrakk> \<Longrightarrow> ovalidNF (\<lambda>s. list (xs @ [x]) pb s \<and> a_list a s \<and> s[a]\<rightarrow>next \<noteq> NULL)
-          (list_find_last_node_inner_loop_content a) (\<lambda>a b. a \<in> set (xs @ [x]) \<and> a \<noteq> NULL \<and> list (xs @ [x]) pb b \<and> a_list a b)"
-    apply(unfold list_find_last_node_inner_loop_content_def)
-    apply(wp del:list_def set_append)
+lemma list_find_last_node_inner_loop_content_correct : " \<lbrakk> a \<in> set xs ; a \<noteq> NULL \<rbrakk> \<Longrightarrow> ovalidNF (\<lambda>s. list xs pb s \<and> a_list a s \<and> s[a]\<rightarrow>next \<noteq> NULL)
+          (list_find_last_node_inner_loop_content a) (\<lambda>r b. r \<in> set xs \<and> r \<noteq> NULL \<and> list xs pb b \<and> a_list r b)"
+  apply(unfold list_find_last_node_inner_loop_content_def)
+  apply(wp del:set_append)
   apply(clarsimp simp del:set_append)
-  apply(frule list_content_is_valid[where xs="(xs @ [x])", where p=pb, where w=a])
+  apply(frule list_content_is_valid[where w=a])
+  apply(simp)
+  apply(intro conjI)
      apply(clarsimp)
-    apply(rule)
-     apply(clarsimp)
-  apply(clarsimp simp del:set_append)
-  apply(rule)
-   apply(clarsimp simp:list_is_cons_r)
-  apply(rule)
-  apply(simp add: list_next_in_list del:set_append)
-  apply(auto simp:a_list_def list_is_cons_r)
+    apply(clarsimp simp:list_is_cons_r)
+  apply(clarsimp simp add:list_next_in_list simp del:set_append)
+  apply(clarsimp simp add:a_list_def)
   done
 
 lemma list_find_last_node_inner_loop_content_pure : "ovalid P (list_find_last_node_inner_loop_content a) (\<lambda>_. P)"
@@ -552,8 +648,10 @@ definition list_find_last_node_inner_loop :: "list_C ptr \<Rightarrow> lifted_gl
          oreturn p
       OD) p"
 
-lemma list_find_last_node_inner_loop_content_mesure : " \<lbrakk> a \<in> set (xs @ [x]) ; a \<noteq> NULL \<rbrakk> \<Longrightarrow> ovalid
-            (\<lambda>s. list (xs @ [x]) pb s \<and> a_list a s \<and> s[a]\<rightarrow>next \<noteq> NULL \<and> length (THE xs. list xs a s) = m)
+
+
+lemma list_find_last_node_inner_loop_content_mesure : "a \<noteq> NULL \<Longrightarrow> ovalid
+            (\<lambda>s. list xs pb s \<and> a_list a s \<and> s[a]\<rightarrow>next \<noteq> NULL \<and> length (THE xs. list xs a s) = m)
             (list_find_last_node_inner_loop_content a)
             (\<lambda>r s. length (THE xs. list xs r s) < m)"
   apply(unfold list_find_last_node_inner_loop_content_def)
@@ -566,6 +664,7 @@ lemma list_find_last_node_inner_loop_content_mesure : " \<lbrakk> a \<in> set (x
   apply(clarsimp)
   apply (metis length_Cons lessI list_is_cons the_list_unique)
   done
+
 
 lemma list_find_last_node_inner_loop_correct : "ovalidNF (list (xs @ [x]) pb) (list_find_last_node_inner_loop pb) (\<lambda>r _. r = x)"
   apply(unfold list_find_last_node_inner_loop_def)
@@ -662,7 +761,7 @@ lemma list_insert_back_correct : "(x \<notin> set xs \<and> x \<noteq> NULL \<an
    apply(wp)
       apply(rule list_singleton_correct)
        apply(simp)
-  apply(simp)
+      apply(simp)
      apply(rule validNF_false_pre )
     apply(wp)
    apply(clarsimp simp:listp_def)
@@ -814,4 +913,51 @@ lemma list_pop_pure : "(\<forall>s. P s \<longrightarrow> P s[p := s[s[p]]\<righ
   apply(case_tac "s[p] = NULL")
    apply(clarsimp)+
   done
+
+subsection \<open>list\_empty\<close>
+subsubsection \<open>correct\<close>
+
+lemma list_is_empty_correct : "ovalidNF (listp x p) (all.list_is_empty' p) (\<lambda>r _. if x = [] then r = 1 else r = 0)"
+  apply(clarsimp simp:all.list_is_empty'_def)
+  apply(wp)
+  apply(clarsimp simp:listp_def)
+  apply(intro conjI)
+  apply(clarsimp simp:list_is_empty_r list_is_cons_r)+
+  done
+
+
+
+
+
+
+
+
+
+
+
+
+(* DEMO *)
+section \<open>DEMO\<close>
+text \<open>Theorems proved during presentation\<close>
+
+thm fun_upd_def (*      ?f(?a := ?b) = (\<lambda>x. if x = ?a then ?b else ?f x)     *)
+thm list_is_empty (* list [] ?p ?s = (?p = NULL)  *)
+
+lemma list_empty_correct' : "\<lbrace> \<lambda> s. is_valid_list_C'ptr s l \<rbrace> all.list_empty' l \<lbrace> \<lambda>_. listp [] l \<rbrace>!"
+oops
+
+thm list_is_cons (* list (?x # ?xs) ?p ?s = (?p = ?x \<and> is_valid_list_C ?s ?p \<and> ?p \<noteq> NULL \<and> list ?xs ?s[?p]\<rightarrow>next ?s) *)
+
+lemma list_singleton_correct' : "\<lbrakk> x \<noteq> NULL ; x \<noteq> ptr_coerce l \<rbrakk> \<Longrightarrow> 
+                                              \<lbrace> \<lambda>s. is_valid_list_C s x \<and> is_valid_list_C'ptr s l  \<rbrace>
+                                              all.list_singleton_alt' l x
+                                              \<lbrace> \<lambda> r. listp [x] l \<rbrace>!"
+  oops
+
+thm list_st_update_ignore (* ?q \<notin> set ?xs \<Longrightarrow> list ?xs ?p ?s[?q\<rightarrow>next := ?\<omega>] = list ?xs ?p ?s *)
+
+lemma list_insert_front_correct' : "x \<noteq> NULL
+  \<Longrightarrow> \<lbrace>\<lambda>s. listp xs l s \<and> is_valid_list_C s x  \<rbrace> all.list_insert_front' l x \<lbrace>\<lambda>r. listp (x#xs) l \<rbrace>!"
+  oops
+
 end

@@ -8,3 +8,12 @@ src/all.c
 src/all.c_pp
 tool
 \#*\#
+.exrc
+_minted-slides
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb

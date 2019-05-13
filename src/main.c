@@ -1,3 +1,8 @@
+/*  Titre:      src/main.c
+    Auteur:     Adrien Stalain
+
+    Fait dans le cadre d'un stage à Orange Labs
+*/
 #include "list.h"
 
 // list element "allocator"

@@ -1,14 +1,35 @@
+/*  Titre:      src/list.c
+    Auteur:     Adrien Stalain
+
+    Fait dans le cadre d'un stage à Orange Labs
+*/
+
 #include  "list.h"
 
 #ifndef NULL
 #define NULL ((void *)0)
 #endif
 
-
 void list_empty(list_t *l)
 {
   *l = NULL;
 }
+
+#ifdef PROOVER
+int global_variable;
+void list_empty_alt1(list_t *l)
+{
+  *l = NULL;
+  global_variable = (int)l;
+}
+
+void list_empty_alt2(list_t *l)
+{
+  for(unsigned int i = 0; i < 0xFFFFFFFF;i++)
+    *l = NULL;
+}
+
+#endif
 
 void list_insert_front(list_t *l, struct list *new)
 {
@@ -21,6 +42,13 @@ void list_singleton(list_t *l, struct list *new)
   *l = new;
   new->next = NULL;
 }
+
+#ifdef PROOVER
+void list_singleton_alt(list_t *l, struct list *new)
+{
+  *l = new;
+}
+#endif
 
 void list_insert_after(struct list *node, struct list*new)
 {
@@ -68,4 +96,10 @@ unsigned int list_length(list_t *l)
     p = p->next;
   }
   return count;
+}
+
+
+int list_is_empty(list_t *l)
+{
+  return (*l == NULL);
 }
