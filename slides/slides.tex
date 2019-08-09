@@ -30,7 +30,7 @@
 \usetheme{Warsaw}
 
 \title{Preuve formelle de micro-noyau}
-\author{A. Stalain }\institute{Orange Labs - Stagiaire \\[3mm] {\tiny Tuteur - V. Sanchez Leighton}}
+\author{Adrien Stalain }\institute{Orange Labs - Stagiaire \\[3mm] {\tiny Tuteur - V. Sanchez Leighton}}
 
 
 \lstdefinelanguage{thy}{
@@ -62,7 +62,7 @@
            {→}{{\tiny$\rightarrow$}}1
            {⇒}{{$\Rightarrow$}}1,
   string=[s]{"}{"},
-  stringstyle=\color{black!60}\ttfamily
+  stringstyle=\color{black!90}\ttfamily
 }
 \lstset{
    language=thy,
@@ -111,7 +111,7 @@
     %kernel
     \draw[fill=orange!30,orange!30] (0, -5) rectangle (6, -8);
     \node[right] at (0,-5.25) {Kernel};
-    \node[idea] at (3,-5) (API) {API};
+    \node[idea] at (3,-5) (API) {Syscalls};
     \node[autom] at (3,-8.) (Bin) {Instructions Assembleur / Binaire};
 
 
@@ -181,7 +181,7 @@
     \path[<->]<7-> node[manualspec, right of=abspec, node distance=4cm] (highproofs) {Preuves de plus haut niveau}
                   (abspec) edge node {} (highproofs);
 
-    \path[->]<8-> node[autom,right of=hask,node distance=4cm] (autocorres) {Spécification généré par Autocorres};
+    \path[->]<8-> node[autom,right of=hask,node distance=4cm] (autocorres) {Modèle généré par Autocorres};
     \path[<->,draw=orange]<8> (CMod) -- node[left] {Preuves générés par autocorres} (autocorres);
 
     \draw(8.5,-5) node[manual,right] {Implementation manuelle};
@@ -391,22 +391,24 @@ void list_insert_front
       \begin{lstlisting}
 "⦃ λs. @<\color{blue}$(x\ mod\ 2) = 0$>@ ⦄
   @<\color{forestgreen}do>@
-    @<\color{forestgreen}return (x >> 1)>@
+    @<\color{forestgreen}return (x / 2)>@
   @<\color{forestgreen}od>@
  ⦃ λr s. @<\color{orange}$r * 2 = x$>@ ⦄"
       \end{lstlisting}
     \end{column}
     \begin{column}{.5\textwidth}
       \begin{minted}[fontsize=\scriptsize]{c}
-/* ASSERT : (x % 2) == 0 */
-return x >> 1;
-/* ASSERT : (ret_value * 2) == x */
+/* Pre: (x % 2) == 0 */
+/* Post: (ret_value * 2) == x */
+int f (int x)
+{
+  return x / 2;
+}
       \end{minted}
     \end{column}
   \end{columns}
   Expression vraie quand pour tout état \texttt{s} dans lequel \texttt{\color{blue}précondition} est valide, après l'exécution de \texttt{\color{forestgreen}instructions} dans cet état, alors \texttt{\color{orange}postcondition} sera valide dans le nouvel état.
 \end{frame}
-
 
 \begin{frame}[fragile]{Exemple: liste chainée}
   \begin{minted}[fontsize=\scriptsize]{c}
@@ -422,6 +424,114 @@ typedef struct list *list_t;
   \end{minted}
 
 \end{frame}
+
+\begin{frame}[fragile]{Hoare: Weakest Precondition}
+  \begin{onlyenv}<1>
+    \begin{minted}[fontsize=\scriptsize]{c}
+// Pre: l = [x,xs...]
+struct list *list_pop(list_t *l)
+{
+  struct list *first = *l;
+  *l = first->next;
+  first->next = NULL;
+  return first; 
+}
+// Post: l = [xs...] , return_value = [x]
+
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<2>
+    \begin{minted}[fontsize=\scriptsize]{c}
+// Pre: l = [x,xs...]
+struct list *list_pop(list_t *l)
+{
+  struct list *first = *l;
+  *l = first->next;
+  first->next = NULL;
+  // l = [xs...], first = [x]
+  return first; 
+}
+// Post: l = [xs...] , return_value = [x]
+
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<3>
+    \begin{minted}[fontsize=\scriptsize]{c}
+// Pre: l = [x,xs...]
+struct list *list_pop(list_t *l)
+{
+  struct list *first = *l;
+  *l = first->next;
+  // l = [xs...], first = [x,?...],
+  first->next = NULL;
+  // l = [xs...], first = [x]
+  return first; 
+}
+// Post: l = [xs...] , return_value = [x]
+
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<4>
+    \begin{minted}[fontsize=\scriptsize]{c}
+// Pre: l = [x,xs...]
+struct list *list_pop(list_t *l)
+{
+  struct list *first = *l;
+  // l = ???, first = [x,?...], first = [?,xs...],
+  *l = first->next;
+  // l = [xs...], first = [x,?...],
+  first->next = NULL;
+  // l = [xs...], first = [x]
+  return first; 
+}
+// Post: l = [xs...] , return_value = [x]
+
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<5>
+    \begin{minted}[fontsize=\scriptsize]{c}
+// Pre: l = [x,xs...]
+struct list *list_pop(list_t *l)
+{
+  struct list *first = *l;
+  // l = ???, first = [x,xs...]
+  // l = ???, first = [x,?...], first = [?,xs...],
+  *l = first->next;
+  // l = [xs...], first = [x,?...],
+  first->next = NULL;
+  // l = [xs...], first = [x]
+  return first; 
+}
+// Post: l = [xs...] , return_value = [x]
+
+    \end{minted}
+  \end{onlyenv}
+
+  \begin{onlyenv}<6>
+    \begin{minted}[fontsize=\scriptsize]{c}
+// Pre: l = [x,xs...]
+struct list *list_pop(list_t *l)
+{
+  // l = [x,xs...]
+  struct list *first = *l;
+  // l = ???, first = [x,xs...]
+  // l = ???, first = [x,?...], first = [?,xs...]
+  *l = first->next;
+  // l = [xs...], first = [x,?...]
+  first->next = NULL;
+  // l = [xs...], first = [x]
+  return first; 
+}
+// Post: l = [xs...] , return_value = [x]
+
+    \end{minted}
+  \end{onlyenv}
+\end{frame}
+
 
 \begin{frame}[fragile]{Autocorres avec la syntaxe Lifted heap}
   \begin{tabular}{p{0.5\textwidth} r@{} @{}l}
@@ -809,7 +919,7 @@ lemma list_singleton_correct :
   \pause
   \textbf{Pourquoi}:
   \begin{itemize}
-    \item Si la proposition est fausse, \texttt{x} ne serait pas néssésairement le dernier élément puisque son \texttt{$\rightarrow$next} est pas forcémment \texttt{NULL}.
+    \item Si la proposition est fausse, \texttt{x} ne serait pas nécéssairement le dernier élément puisque son \texttt{$\rightarrow$next} est pas forcémment \texttt{NULL}.
     \item C'est donc un bug dans la fonction.
   \end{itemize}
   \pause
@@ -949,7 +1059,7 @@ lemma list_insert_front_correct :
     \item<3-> Si \texttt{l} est un pointeur sur liste valide contenant les éléments \texttt{xs} et \texttt{x} est un \texttt{struct list *} valide.
     \item<4-> Alors, après l'execution de \texttt{list\_insert\_front l x}.
     \item<5-> On aura \texttt{l} un pointeur sur liste valide, contenant x suivi des éléments de xs
-    \item<6-> Sans que d'erreurs se produise, et en un temps fini.
+    \item<6-> Sans que d'erreurs ne se produisent, et en un temps fini.
   \end{itemize}
 
   \vfill
@@ -965,7 +1075,7 @@ lemma list_insert_front_correct :
 \end{frame}
 
 \begin{frame}[fragile]
-  \textbf{Problème}: on arrive pas a prouver que:
+  \textbf{Problème}: on n'arrive pas a prouver que:
   \begin{lstlisting}
 1. ∀s. [...] ⟹ ptr_coerce l ≠ x
 2. ∀s. [...] ⟹ x ∉ set xs
@@ -1002,7 +1112,7 @@ lemma list_insert_front_correct :
        \end{lstlisting}
     \end{minipage}
   \end{center}
-  La preuve peut donc permetre de corriger des erreurs de spécifications.
+  La preuve peut donc permettre de corriger des erreurs de spécifications.
   \vfill
   \hfill
   {\tiny voir (\url{proof/Listp.thy})}
@@ -1011,8 +1121,8 @@ lemma list_insert_front_correct :
 
 \begin{frame}{Conclusion}
   \begin{itemize}
-    \item La preuve formule des garanties (mécaniques) sur des propriétées du programmes.
-    \item Ces propriétés sont définies (posés) dans son contexte: La Théorie.
+    \item La preuve formule des garanties (mécaniques) sur des propriétés du programmes.
+    \item Ces propriétés sont définies (posées) dans son contexte: La Théorie.
     \item Ce contexte peut être aveugle à certaines choses.
     \item Les projets prouvés ont une valeur que dans ce contexte.
   \end{itemize}
@@ -1024,11 +1134,11 @@ lemma list_insert_front_correct :
   \begin{beamercolorbox}[sep=8pt,center,shadow=true,rounded=true]{title}
     \usebeamerfont{title}Questions\par%
   \end{beamercolorbox}
-  \begin{center}
-  Sources \& Slides disponibles sur \\
-    {\small \url{https://github.com/PolyB/isabelle-proof-exemple}}\\
-    {\tiny (Pas encore public)}
-  \end{center}
+  %\begin{center}
+  %Sources \& Slides disponibles sur \\
+  %  {\small \url{https://github.com/PolyB/isabelle-proof-exemple}}\\
+  %  {\tiny (Pas encore public)}
+  %\end{center}
 \end{frame}
 
 \end{document}
